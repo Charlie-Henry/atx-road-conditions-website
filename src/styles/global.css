@@ -130,6 +130,9 @@ body {
   text-decoration: none;
   white-space: nowrap;
 }
+/* The text's line box leaves room for descenders, which lifts the capitals ~2px above
+   the icon's center. Nudge the text down so the capitals and the icon share a centerline. */
+.masthead__link-text { transform: translateY(0.125em); }
 .masthead__link:hover { background: rgb(255 255 255 / 0.12); border-color: rgb(255 255 255 / 0.7); }
 .masthead__link:focus-visible { outline-color: var(--lane); }
 
