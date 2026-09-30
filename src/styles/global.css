@@ -66,21 +66,23 @@ body {
   display: grid;
   height: 100dvh;
   grid-template-columns: var(--panel-width) 1fr;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   grid-template-areas:
     "masthead masthead"
-    "panel    map";
+    "panel    map"
+    "footer   footer";
 }
 .masthead { grid-area: masthead; }
 .panel { grid-area: panel; }
 .map-wrap { grid-area: map; min-height: 0; position: relative; }
+.site-footer { grid-area: footer; }
 
 @media (max-width: 820px) {
   .app {
     height: auto;
     grid-template-columns: 1fr;
-    grid-template-rows: auto 52dvh auto;
-    grid-template-areas: "masthead" "map" "panel";
+    grid-template-rows: auto 52dvh auto auto;
+    grid-template-areas: "masthead" "map" "panel" "footer";
   }
 }
 
@@ -130,6 +132,18 @@ body {
 }
 .masthead__link:hover { background: rgb(255 255 255 / 0.12); border-color: rgb(255 255 255 / 0.7); }
 .masthead__link:focus-visible { outline-color: var(--lane); }
+
+/* ---------- footer ---------- */
+
+.site-footer {
+  padding: 0.55rem 1.25rem;
+  background: var(--asphalt);
+  color: #c5cbd0;
+  font-size: 0.88rem;
+}
+.site-footer p { margin: 0; }
+.site-footer a { color: var(--lane); text-underline-offset: 0.15em; }
+.site-footer a:hover { text-decoration-thickness: 2px; }
 
 /* ---------- panel ---------- */
 
