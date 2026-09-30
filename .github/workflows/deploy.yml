@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+on:
+  # Deploy every time main is updated
+  push:
+    branches: [main]
+  # Lets you run it by hand from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository using git
+        uses: actions/checkout@v7
+
+      # A project site lives at https://<user>.github.io/<repo>/, so Astro needs the
+      # repo name as its base path. A <user>.github.io repo, or a custom domain
+      # (set the repository variable SITE_URL, e.g. https://roads.example.com),
+      # is served from the root, so no base path.
+      - name: Work out the site URL and base path
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          if [ -n "$SITE_URL" ]; then
+            echo "SITE=$SITE_URL" >> "$GITHUB_ENV"
+            echo "BASE_PATH=" >> "$GITHUB_ENV"
+          elif [[ "$REPO" == *.github.io ]]; then
+            echo "SITE=https://${GITHUB_REPOSITORY_OWNER}.github.io" >> "$GITHUB_ENV"
+            echo "BASE_PATH=" >> "$GITHUB_ENV"
+          else
+            echo "SITE=https://${GITHUB_REPOSITORY_OWNER}.github.io" >> "$GITHUB_ENV"
+            echo "BASE_PATH=/$REPO" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install, build, and upload your site output
+        uses: withastro/action@v6
+        env:
+          # Optional. Set a repository variable to raise the Socrata rate limit.
+          # It is embedded in the built site, so use a read-only token.
+          PUBLIC_SOCRATA_APP_TOKEN: ${{ vars.PUBLIC_SOCRATA_APP_TOKEN }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
