@@ -396,10 +396,10 @@ body {
 }
 /* A pill can't hold a long text panel, so an open banner becomes a rounded card */
 .alert[data-open="true"] { border-radius: 22px; }
-.alert[data-severity="severe"] { --ac: #e9738b; }
+.alert[data-severity="extreme"] { --ac: #7a1020; color: #fff; }
+.alert[data-severity="severe"] { --ac: #d32f2f; color: #fff; }
 .alert[data-severity="moderate"] { --ac: #f3a04a; }
 .alert[data-severity="minor"] { --ac: #f2d06b; }
-.alert[data-severity="extreme"] { --ac: #a8162a; color: #fff; }
 
 .alert__head {
   all: unset;
@@ -413,7 +413,8 @@ body {
   cursor: pointer;
 }
 .alert__head:focus-visible { outline: 3px solid var(--asphalt); outline-offset: -5px; }
-.alert[data-severity="extreme"] .alert__head:focus-visible { outline-color: #fff; }
+.alert[data-severity="extreme"] .alert__head:focus-visible,
+.alert[data-severity="severe"] .alert__head:focus-visible { outline-color: #fff; }
 .alert__icon { font-size: 1.35rem; line-height: 1; }
 .alert__text { flex: 1; font-size: 1.15rem; font-weight: 600; line-height: 1.25; }
 .alert__toggle { font-size: 0.88rem; font-weight: 600; text-decoration: underline; text-underline-offset: 0.15em; white-space: nowrap; }
