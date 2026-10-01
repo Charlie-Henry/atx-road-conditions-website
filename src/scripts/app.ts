@@ -7,6 +7,7 @@ import { createAlertsUI } from "./alerts-ui";
 import { formatAge, formatAgeLong, formatDuration, getFreshness, type Freshness } from "../lib/freshness";
 import { fetchActiveIncidents, type Incident } from "../lib/incidents";
 import { fetchLatestReading, type Reading } from "../lib/socrata";
+import { PortalError } from "../lib/soda";
 
 interface CardRefs {
   li: HTMLLIElement;
@@ -14,6 +15,7 @@ interface CardRefs {
   chip: HTMLSpanElement;
   grip: HTMLSpanElement;
   badge: HTMLSpanElement;
+  blobs: HTMLSpanElement[];
   age: HTMLSpanElement;
   body: HTMLDivElement;
   notes: HTMLDivElement;
@@ -92,6 +94,8 @@ function renderIncidentLabel() {
   let text = "Traffic incidents";
   if (incidentsLoaded) {
     text += incidentsError && incidents.length === 0 ? " (unavailable)" : ` (${incidents.length} active)`;
+  } else {
+    text += " (loading…)";
   }
   incidentsLabel.textContent = text;
 }
@@ -170,6 +174,8 @@ function buildCard(config: SensorConfig): CardRefs {
         <span class="chip"></span>
         <span class="grip" hidden></span>
         <span class="badge" hidden>Outdated</span>
+        <span class="blob blob--chip" aria-hidden="true" hidden></span>
+        <span class="blob blob--chip blob--short" aria-hidden="true" hidden></span>
       </span>
       <span class="sensor__age"></span>
     </button>
@@ -199,6 +205,7 @@ function buildCard(config: SensorConfig): CardRefs {
     chip: li.querySelector(".chip") as HTMLSpanElement,
     grip: li.querySelector(".grip") as HTMLSpanElement,
     badge: li.querySelector(".badge") as HTMLSpanElement,
+    blobs: [...li.querySelectorAll<HTMLSpanElement>(".blob")],
     age: li.querySelector(".sensor__age") as HTMLSpanElement,
     body: li.querySelector(".sensor__body") as HTMLDivElement,
     notes: li.querySelector(".notes") as HTMLDivElement,
@@ -269,15 +276,27 @@ function renderSensor(state: SensorState, now: Date) {
   const { card, reading, config } = state;
 
   if (!state.loaded) {
-    card.chip.textContent = "Loading";
-    card.chip.dataset.severity = "unknown";
+    // Still waiting on the first answer: grey shimmering placeholders instead of content.
     card.li.dataset.severity = "unknown";
+    card.li.dataset.loading = "true";
+    card.li.setAttribute("aria-busy", "true");
+    card.chip.hidden = true;
     card.grip.hidden = true;
+    card.badge.hidden = true;
+    card.blobs.forEach((b) => (b.hidden = false));
+    card.age.textContent = "Loading latest reading…";
+    card.age.classList.add("is-blob");
     card.li.hidden = false;
     state.stale = false;
-    card.age.textContent = "";
     return;
   }
+
+  // Answered: drop the placeholders.
+  card.li.removeAttribute("data-loading");
+  card.li.removeAttribute("aria-busy");
+  card.chip.hidden = false;
+  card.blobs.forEach((b) => (b.hidden = true));
+  card.age.classList.remove("is-blob");
 
   card.notes.replaceChildren();
   card.facts.replaceChildren();
@@ -379,6 +398,7 @@ function renderAll() {
 
   renderOutdatedFilter();
   renderBanner(now);
+  renderIncidentLabel();
   alertsUI.render(now);
 }
 
@@ -403,11 +423,18 @@ function renderOutdatedFilter() {
   outdatedBtn.textContent = showOutdated ? "Hide outdated sites" : "Show outdated sites";
 }
 
+/** True until the visitor touches the map, so initial framing never fights their panning. */
+let autoFraming = true;
+for (const type of ["pointerdown", "wheel", "keydown"]) {
+  map.getContainer().addEventListener(type, () => (autoFraming = false), { passive: true });
+}
+
 /** Zoom the map to the sites currently shown. Returns false if there is nothing to frame. */
-function fitToVisible(): boolean {
+function fitToVisible(opts: { auto?: boolean } = {}): boolean {
   const points = states.flatMap((s) => (s.marker && map.hasLayer(s.marker) ? [s.marker.getLatLng()] : []));
   if (!points.length) return false;
-  map.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 13 });
+  // Automatic re-framing while sensors arrive jumps instead of animating, so it doesn't swoop around.
+  map.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 13, animate: !opts.auto });
   return true;
 }
 
@@ -422,7 +449,7 @@ function renderBanner(now: Date) {
   const anyFuture = states.some(
     (s) => s.reading && getFreshness(s.reading.observedAt, now, SETTINGS.staleAfterHours).isFuture,
   );
-  const allFailed = loadedStates.length > 0 && loadedStates.every((s) => s.error);
+  const allFailed = loadedStates.length === states.length && loadedStates.every((s) => s.error);
   const anyReading = states.some((s) => s.reading);
 
   const messages: string[] = [];
@@ -433,7 +460,7 @@ function renderBanner(now: Date) {
   } else if (allFailed) {
     messages.push(
       anyReading
-        ? "Couldn't reach the open data portal. Showing the last readings that loaded."
+        ? "Couldn't update sensor data from the open data portal. Showing the last readings that loaded."
         : "Couldn't load sensor data from the open data portal. Try again in a minute.",
     );
   }
@@ -479,7 +506,9 @@ function select(id: string | null, opts: { toggle: boolean; fromMap?: boolean })
 }
 
 states.forEach((s) =>
-  s.card.head.addEventListener("click", () => select(s.config.id, { toggle: true })),
+  s.card.head.addEventListener("click", () => {
+    if (s.loaded) select(s.config.id, { toggle: true });
+  }),
 );
 
 // ---------- loading screen ----------
@@ -517,13 +546,13 @@ function hideLoading() {
 let loading = false;
 let latestAlertRequest = 0;
 let lastFetch = 0;
-let fitted = false;
 
 async function load() {
   if (loading) return;
   loading = true;
   refreshBtn.disabled = true;
-  if (lastFetch) checkedEl.textContent = "Refreshing…";
+  const initialLoad = lastFetch === 0;
+  if (!initialLoad) checkedEl.textContent = "Refreshing…";
 
   // Weather alerts load on their own. They never hold up the loading screen, and an
   // older, slower response can't overwrite a newer one.
@@ -538,50 +567,65 @@ async function load() {
     },
   );
 
-  const incidentsPromise = fetchActiveIncidents().then(
-    (value) => ({ ok: true as const, value }),
-    (reason: unknown) => ({ ok: false as const, reason }),
-  );
-  void incidentsPromise.then((r) => setStep("incidents", r.ok ? "done" : "failed"));
+  // Traffic incidents go on the map whenever they arrive. Nothing waits for them.
+  const incidentsDone = fetchActiveIncidents()
+    .then(
+      (value) => {
+        incidents = value;
+        incidentsError = false;
+      },
+      (reason: unknown) => {
+        console.error("Traffic incidents failed", reason);
+        incidentsError = true; // keep showing the last incidents that loaded, if any
+      },
+    )
+    .then(() => {
+      incidentsLoaded = true;
+      setStep("incidents", incidentsError ? "failed" : "done");
+      syncIncidentMarkers();
+      renderAll();
+    });
 
-  const sensorsPromise = Promise.allSettled(SENSORS.map((s) => fetchLatestReading(Number(s.id))));
-  void sensorsPromise.then((rs) => {
-    const failed = rs.filter((r) => r.status === "rejected").length;
-    setStep("sensors", failed === 0 ? "done" : failed === rs.length ? "failed" : "partial");
-  });
-  const results = await sensorsPromise;
-  results.forEach((result, i) => {
+  // Each sensor is drawn the moment its own request finishes, while the rest keep loading
+  // behind their grey placeholders.
+  let settled = 0;
+  let failed = 0;
+  const sensorsDone = SENSORS.map(async (sensor, i) => {
     const state = states[i];
-    state.loaded = true;
-    if (result.status === "fulfilled") {
-      if (result.value) {
-        state.reading = result.value;
+    try {
+      const reading = await fetchLatestReading(Number(sensor.id));
+      if (reading) {
+        state.reading = reading;
         state.error = null;
       } else {
         state.error = "No readings found for this sensor.";
       }
-    } else {
-      console.error(`Sensor ${state.config.id} failed`, result.reason);
-      state.error = "Couldn't reach the open data portal.";
+    } catch (reason) {
+      failed++;
+      console.error(`Sensor ${sensor.id} failed`, reason);
+      state.error =
+        reason instanceof PortalError ? reason.userMessage : "Couldn't load this sensor's data.";
     }
+    state.loaded = true;
+    settled++;
+
+    renderAll();
+    if (initialLoad && autoFraming) fitToVisible({ auto: true });
+
+    const allSettled = settled === SENSORS.length;
+    if (allSettled) setStep("sensors", failed === 0 ? "done" : failed === SENSORS.length ? "failed" : "partial");
+    else if (state.reading) setStep("sensors", "done");
+
+    // The loading screen only needs to hold until there is something real to look at.
+    if (state.reading || allSettled) hideLoading();
   });
 
-  const incidentResult = await incidentsPromise;
-  incidentsLoaded = true;
-  if (incidentResult.ok) {
-    incidents = incidentResult.value;
-    incidentsError = false;
-  } else {
-    console.error("Traffic incidents failed", incidentResult.reason);
-    incidentsError = true; // keep showing the last incidents that loaded, if any
-  }
-  syncIncidentMarkers();
+  const results = await Promise.allSettled([...sensorsDone, incidentsDone]);
+  for (const r of results) if (r.status === "rejected") console.error("Loading step failed", r.reason);
 
   lastFetch = Date.now();
   checkedEl.textContent = `Checked ${displayTime.format(new Date(lastFetch))}. Refreshes every ${SETTINGS.refreshMinutes} minutes.`;
   renderAll();
-
-  if (!fitted) fitted = fitToVisible();
 
   // Refresh the camera view for whichever sensor is open.
   const open = states.find((s) => s.config.id === selectedId);

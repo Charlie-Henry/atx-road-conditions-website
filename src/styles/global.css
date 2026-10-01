@@ -351,6 +351,23 @@ body {
 .incident-popup p { margin: 0.2rem 0 0; }
 .incident-popup__issue { font-size: 1rem; font-weight: 800; }
 
+/* ---------- loading placeholders (grey shimmering blobs) ---------- */
+
+.blob,
+.is-blob {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e2e6e9 25%, #eff2f4 50%, #e2e6e9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+.blob { display: inline-block; height: 1.7rem; }
+.blob--chip { width: 4.75rem; }
+.blob--short { width: 6.5rem; }
+/* The age line keeps its real text for screen readers but is painted as a blob */
+.sensor__age.is-blob { justify-self: start; color: transparent; user-select: none; }
+.sensor[data-loading] .sensor__head { cursor: progress; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
 /* ---------- weather alerts (over the top of the map) ---------- */
 
 .alerts {
@@ -477,5 +494,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .loading { transition: none; }
   .loading__road { animation: none; }
+  .blob, .is-blob { animation: none; }
   * { scroll-behavior: auto !important; }
 }

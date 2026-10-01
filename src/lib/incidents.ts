@@ -1,7 +1,7 @@
 import { SETTINGS } from "../config/sensors";
 import { parseFloatingTimestamp } from "./freshness";
 import { num, parseLocation, type RawPoint } from "./geo";
-import { sodaUrl } from "./soda";
+import { sodaFetchJson, sodaUrl } from "./soda";
 
 export interface Incident {
   id: string;
@@ -54,10 +54,7 @@ export async function fetchActiveIncidents(): Promise<Incident[]> {
     $where: `traffic_report_status='${SETTINGS.incidentStatus}'`,
     $limit: String(SETTINGS.maxIncidents),
   });
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`Socrata returned HTTP ${res.status}`);
-
-  const rows = (await res.json()) as RawIncident[];
+  const rows = await sodaFetchJson<RawIncident[]>(url);
   const incidents: Incident[] = [];
 
   for (const row of rows) {

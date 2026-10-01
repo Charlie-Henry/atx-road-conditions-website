@@ -1,7 +1,7 @@
 import { SETTINGS } from "../config/sensors";
 import { parseFloatingTimestamp } from "./freshness";
 import { num, parseLocation, type RawPoint } from "./geo";
-import { sodaUrl } from "./soda";
+import { sodaFetchJson, sodaUrl } from "./soda";
 
 export interface Reading {
   sensorId: number;
@@ -63,10 +63,7 @@ export async function fetchLatestReading(sensorId: number): Promise<Reading | nu
     $order: "timestamp DESC",
     $limit: "1",
   });
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`Socrata returned HTTP ${res.status}`);
-
-  const rows = (await res.json()) as RawRow[];
+  const rows = await sodaFetchJson<RawRow[]>(url);
   const row = rows[0];
   if (!row?.timestamp) return null;
 

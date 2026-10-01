@@ -46,6 +46,14 @@ in `ignoredAlertEvents` to leave some out. Alerts load separately from the senso
 hold up the loading screen. If the lookup fails, a notice links to the National Weather
 Service instead of silently showing nothing.
 
+## Loading
+
+Sensors are shown one by one as their own requests finish. The full-screen loading screen
+ends as soon as the first sensor has a real reading (or once every sensor has answered, if
+none succeed), and any card still waiting shows grey shimmering placeholders. Pins appear on
+the map as sensors arrive, and the map keeps re-framing to fit them until the visitor first
+touches it. Traffic incidents and weather alerts load independently and never hold anything up.
+
 ## Outdated sites
 
 A site whose latest reading is older than `staleAfterHours` is hidden by default, both
@@ -53,6 +61,13 @@ its card and its map pin. When at least one site is outdated, a note under the l
 how many are hidden, with a **Show outdated sites** button. Once shown, outdated sites
 keep their "Outdated" badge and hatched grey pin. The map re-frames to whichever sites
 are visible.
+
+## Portal request errors
+
+Each request to the open data portal makes one attempt and gives up after 15 seconds. If a
+sensor can't load, its card says why ("took too long to respond", "is limiting requests right
+now", "had a problem (HTTP 503)") instead of a generic message. The Refresh button, or the
+5-minute timer, tries again.
 
 ## Traffic incidents
 
