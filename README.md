@@ -64,7 +64,7 @@ are visible.
 
 ## Portal request errors
 
-Each request to the open data portal makes one attempt and gives up after 15 seconds. If a
+Each request to the open data portal makes one attempt and gives up after 30 seconds. If a
 sensor can't load, its card says why ("took too long to respond", "is limiting requests right
 now", "had a problem (HTTP 503)") instead of a generic message. The Refresh button, or the
 5-minute timer, tries again.

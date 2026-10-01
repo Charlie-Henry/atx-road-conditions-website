@@ -11,7 +11,7 @@ export function sodaUrl(datasetId: string, params: Record<string, string>): stri
 export type PortalFailure = "timeout" | "network" | "http" | "response";
 
 /** Each request gets one attempt, and gives up after this long. */
-const REQUEST_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 30_000;
 
 /** A failed portal request, with a plain-language description for the UI. */
 export class PortalError extends Error {
